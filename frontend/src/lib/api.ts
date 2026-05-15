@@ -55,8 +55,8 @@ export async function extractFields(
   return res.json();
 }
 
-export async function getExtractions(): Promise<ExtractionListItem[]> {
-  const res = await request("/api/extractions");
+export async function getExtractions(skip = 0, limit = 50): Promise<ExtractionListItem[]> {
+  const res = await request(`/api/extractions?skip=${skip}&limit=${limit}`);
   return res.json();
 }
 

@@ -1,5 +1,8 @@
+import logging
 from app.schemas import FieldDefinition
 from app.config import CONFIDENCE_THRESHOLD
+
+logger = logging.getLogger("docuextract.validation")
 
 
 def validate_extraction(
@@ -12,7 +15,19 @@ def validate_extraction(
     for field in fields:
         field_data = extracted_data.get(field.name)
 
-        if field_data is None or field_data.get("value") is None:
+        # Handle missing field or malformed AI response (not a dict)
+        if field_data is None or not isinstance(field_data, dict):
+            if field_data is not None and not isinstance(field_data, dict):
+                logger.warning(
+                    "Field '%s' has malformed structure (expected dict, got %s), treating as missing",
+                    field.name, type(field_data).__name__,
+                )
+            if field.required:
+                missing.append(field.name)
+                needs_review = True
+            continue
+
+        if field_data.get("value") is None:
             if field.required:
                 missing.append(field.name)
                 needs_review = True
