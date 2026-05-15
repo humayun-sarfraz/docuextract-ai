@@ -91,14 +91,12 @@ class TestExtraction:
             "total": {"value": 100, "confidence": 0.9, "evidence": "Total: $100"},
         }
 
-        # Upload first
         upload = client.post(
             "/api/documents/upload",
             files={"file": ("invoice.txt", io.BytesIO(b"Vendor: Acme\nTotal: $100"), "text/plain")},
         )
         doc_id = upload.json()["id"]
 
-        # Extract
         res = client.post(
             "/api/extraction/extract",
             json={
@@ -168,7 +166,6 @@ class TestExtractionReview:
         ext_id = extract_res.json()["id"]
         assert extract_res.json()["needs_review"] is True
 
-        # Approve
         approve_res = client.post(f"/api/extractions/{ext_id}/approve")
         assert approve_res.status_code == 200
         assert approve_res.json()["status"] == "approved"
@@ -195,7 +192,6 @@ class TestExtractionReview:
         )
         ext_id = extract_res.json()["id"]
 
-        # Update
         update_res = client.put(
             f"/api/extractions/{ext_id}",
             json={
@@ -207,12 +203,11 @@ class TestExtractionReview:
         assert update_res.status_code == 200
         assert update_res.json()["extracted_data"]["name"]["value"] == "Correct"
 
-
-class TestExport:
     @patch("app.routes.extraction.extract_fields")
-    def test_export_json(self, mock_extract, client):
+    def test_update_rejects_unknown_fields(self, mock_extract, client):
+        """Cannot add fields that weren't in the original extraction."""
         mock_extract.return_value = {
-            "name": {"value": "Acme", "confidence": 0.95, "evidence": "Acme"},
+            "name": {"value": "Acme", "confidence": 0.9, "evidence": "Acme"},
         }
 
         upload = client.post(
@@ -228,9 +223,46 @@ class TestExport:
         )
         ext_id = extract_res.json()["id"]
 
+        update_res = client.put(
+            f"/api/extractions/{ext_id}",
+            json={
+                "extracted_data": {
+                    "name": {"value": "Acme", "confidence": 1.0, "evidence": "ok"},
+                    "bogus_field": {"value": "bad", "confidence": 1.0, "evidence": "injected"},
+                },
+            },
+        )
+        assert update_res.status_code == 400
+        assert "bogus_field" in update_res.json()["detail"]
+
+
+class TestExport:
+    @patch("app.routes.extraction.extract_fields")
+    def test_export_json_includes_metadata(self, mock_extract, client):
+        mock_extract.return_value = {
+            "name": {"value": "Acme", "confidence": 0.95, "evidence": "Acme"},
+        }
+
+        upload = client.post(
+            "/api/documents/upload",
+            files={"file": ("doc.txt", io.BytesIO(b"Acme content"), "text/plain")},
+        )
+        doc_id = upload.json()["id"]
+        extract_res = client.post(
+            "/api/extraction/extract",
+            json={
+                "document_id": doc_id,
+                "fields": [{"name": "name", "description": "Name", "type": "string", "required": False}],
+            },
+        )
+        ext_id = extract_res.json()["id"]
+
         res = client.get(f"/api/extractions/{ext_id}/export/json")
         assert res.status_code == 200
-        assert res.json()["name"]["value"] == "Acme"
+        data = res.json()
+        assert data["document_id"] == doc_id
+        assert data["extraction_id"] == ext_id
+        assert data["extracted_data"]["name"]["value"] == "Acme"
 
     @patch("app.routes.extraction.extract_fields")
     def test_export_csv(self, mock_extract, client):
@@ -256,3 +288,57 @@ class TestExport:
         assert "text/csv" in res.headers["content-type"]
         assert "name" in res.text
         assert "Acme" in res.text
+
+    @patch("app.routes.extraction.extract_fields")
+    def test_export_marks_status_exported(self, mock_extract, client):
+        """Exporting an approved extraction should mark it as exported."""
+        mock_extract.return_value = {
+            "name": {"value": "Acme", "confidence": 0.95, "evidence": "Acme"},
+        }
+
+        upload = client.post(
+            "/api/documents/upload",
+            files={"file": ("doc.txt", io.BytesIO(b"Acme"), "text/plain")},
+        )
+        extract_res = client.post(
+            "/api/extraction/extract",
+            json={
+                "document_id": upload.json()["id"],
+                "fields": [{"name": "name", "description": "Name", "type": "string", "required": False}],
+            },
+        )
+        ext_id = extract_res.json()["id"]
+
+        # Approve first
+        client.post(f"/api/extractions/{ext_id}/approve")
+
+        # Export JSON
+        client.get(f"/api/extractions/{ext_id}/export/json")
+
+        # Check status changed to exported
+        get_res = client.get(f"/api/extractions/{ext_id}")
+        assert get_res.json()["status"] == "exported"
+
+    @patch("app.routes.extraction.extract_fields")
+    def test_export_csv_null_values(self, mock_extract, client):
+        """CSV export should output 'null' for missing values, not empty string."""
+        mock_extract.return_value = {
+            "name": {"value": None, "confidence": 0, "evidence": None},
+        }
+
+        upload = client.post(
+            "/api/documents/upload",
+            files={"file": ("doc.txt", io.BytesIO(b"content"), "text/plain")},
+        )
+        extract_res = client.post(
+            "/api/extraction/extract",
+            json={
+                "document_id": upload.json()["id"],
+                "fields": [{"name": "name", "description": "Name", "type": "string", "required": False}],
+            },
+        )
+        ext_id = extract_res.json()["id"]
+
+        res = client.get(f"/api/extractions/{ext_id}/export/csv")
+        assert res.status_code == 200
+        assert "null" in res.text

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { approveExtraction, updateExtraction, exportCsv } from "@/lib/api";
+import { approveExtraction, updateExtraction, exportCsv, exportJson } from "@/lib/api";
 import { ExtractionResponse, FieldResult } from "@/lib/types";
 
 interface Props {
@@ -56,16 +56,20 @@ export default function ExtractionResults({ extraction, onUpdate }: Props) {
     }
   };
 
-  const handleExportJson = () => {
-    const blob = new Blob([JSON.stringify(extraction.extracted_data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `extraction_${extraction.id.slice(0, 8)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportJson = async () => {
+    setError("");
+    try {
+      const data = await exportJson(extraction.id);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `extraction_${extraction.id.slice(0, 8)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message || "JSON export failed");
+    }
   };
 
   const handleExportCsv = async () => {
@@ -95,7 +99,7 @@ export default function ExtractionResults({ extraction, onUpdate }: Props) {
     <div className="card">
       <div className="results-header">
         <h2>Extraction Results</h2>
-        <span className={`badge ${extraction.status}`}>{extraction.status}</span>
+        <span className={`badge ${extraction.status}`}>{extraction.status.replace("_", " ")}</span>
       </div>
 
       {extraction.needs_review && (
@@ -190,7 +194,7 @@ export default function ExtractionResults({ extraction, onUpdate }: Props) {
       {error && <p className="error">{error}</p>}
 
       <div className="actions">
-        {extraction.status !== "approved" && (
+        {extraction.status !== "approved" && extraction.status !== "exported" && (
           <button className="btn-primary" onClick={handleApprove} disabled={loading}>
             {loading ? "Approving..." : "Approve"}
           </button>

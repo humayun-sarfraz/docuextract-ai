@@ -118,6 +118,15 @@ def update_extraction(
     if not extraction:
         raise HTTPException(status_code=404, detail="Extraction not found")
 
+    # Validate that only existing fields are being updated
+    existing_data = json.loads(extraction.extracted_json) if extraction.extracted_json else {}
+    unknown_fields = set(req.extracted_data.keys()) - set(existing_data.keys())
+    if unknown_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot add new fields: {', '.join(unknown_fields)}. Only existing fields can be updated.",
+        )
+
     updated_data = {k: v.model_dump() for k, v in req.extracted_data.items()}
     extraction.extracted_json = json.dumps(updated_data)
     extraction.updated_at = datetime.now(timezone.utc)
@@ -133,6 +142,11 @@ def approve_extraction(extraction_id: str, db: Session = Depends(get_db)):
     extraction = db.query(Extraction).filter(Extraction.id == extraction_id).first()
     if not extraction:
         raise HTTPException(status_code=404, detail="Extraction not found")
+
+    # Warn if there are still missing required fields
+    missing = json.loads(extraction.missing_required_fields_json) if extraction.missing_required_fields_json else []
+    if missing:
+        logger.warning("Approving extraction %s with missing required fields: %s", extraction_id, missing)
 
     extraction.status = ExtractionStatus.approved
     extraction.needs_review = False
@@ -150,7 +164,14 @@ def export_json(extraction_id: str, db: Session = Depends(get_db)):
     if not extraction:
         raise HTTPException(status_code=404, detail="Extraction not found")
 
-    data = export_as_json(extraction.extracted_json)
+    data = export_as_json(extraction.id, extraction.document_id, extraction.extracted_json)
+
+    # Mark as exported
+    if extraction.status == ExtractionStatus.approved:
+        extraction.status = ExtractionStatus.exported
+        extraction.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
     return JSONResponse(content=data)
 
 
@@ -161,6 +182,13 @@ def export_csv(extraction_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Extraction not found")
 
     csv_content = export_as_csv(extraction.extracted_json)
+
+    # Mark as exported
+    if extraction.status == ExtractionStatus.approved:
+        extraction.status = ExtractionStatus.exported
+        extraction.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
     return Response(
         content=csv_content,
         media_type="text/csv",

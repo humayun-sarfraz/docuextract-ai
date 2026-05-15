@@ -4,6 +4,8 @@ import { useState, useRef } from "react";
 import { uploadDocument } from "@/lib/api";
 import { DocumentResponse } from "@/lib/types";
 
+const MAX_FILE_SIZE_MB = 10;
+
 interface Props {
   onUploadSuccess: (doc: DocumentResponse) => void;
 }
@@ -15,6 +17,31 @@ export default function FileUpload({ onUploadSuccess }: Props) {
   const [warning, setWarning] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const validateFile = (f: File): string | null => {
+    const ext = f.name.split(".").pop()?.toLowerCase();
+    if (!ext || !["pdf", "txt", "docx"].includes(ext)) {
+      return "Unsupported file type. Use PDF, TXT, or DOCX.";
+    }
+    if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      return `File too large. Maximum size: ${MAX_FILE_SIZE_MB}MB.`;
+    }
+    return null;
+  };
+
+  const selectFile = (f: File | null) => {
+    setError("");
+    setWarning("");
+    if (f) {
+      const err = validateFile(f);
+      if (err) {
+        setError(err);
+        setFile(null);
+        return;
+      }
+    }
+    setFile(f);
+  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -41,17 +68,13 @@ export default function FileUpload({ onUploadSuccess }: Props) {
     e.preventDefault();
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
-    if (dropped) {
-      setFile(dropped);
-      setError("");
-      setWarning("");
-    }
+    if (dropped) selectFile(dropped);
   };
 
   return (
     <div className="card">
       <h2>Upload Document</h2>
-      <p className="hint">Supported formats: PDF, TXT, DOCX (max 10MB)</p>
+      <p className="hint">Supported formats: PDF, TXT, DOCX (max {MAX_FILE_SIZE_MB}MB)</p>
 
       <div
         className={`drop-zone ${dragOver ? "drop-zone-active" : ""}`}
@@ -65,11 +88,7 @@ export default function FileUpload({ onUploadSuccess }: Props) {
           type="file"
           accept=".pdf,.txt,.docx"
           style={{ display: "none" }}
-          onChange={(e) => {
-            setFile(e.target.files?.[0] || null);
-            setError("");
-            setWarning("");
-          }}
+          onChange={(e) => selectFile(e.target.files?.[0] || null)}
         />
         {file ? (
           <p className="drop-zone-text">{file.name} ({(file.size / 1024).toFixed(1)} KB)</p>
