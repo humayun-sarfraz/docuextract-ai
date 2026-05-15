@@ -1,0 +1,32 @@
+[
+  {
+    "name": "vendor_name",
+    "description": "Name of the company or person issuing the invoice",
+    "type": "string",
+    "required": true
+  },
+  {
+    "name": "invoice_number",
+    "description": "Invoice number or reference number",
+    "type": "string",
+    "required": true
+  },
+  {
+    "name": "invoice_date",
+    "description": "Date shown on the invoice",
+    "type": "date",
+    "required": false
+  },
+  {
+    "name": "total_amount",
+    "description": "Final total amount payable",
+    "type": "number",
+    "required": true
+  },
+  {
+    "name": "customer_name",
+    "description": "Name of the customer or company being billed",
+    "type": "string",
+    "required": false
+  }
+]

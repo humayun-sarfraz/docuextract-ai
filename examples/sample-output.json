@@ -1,0 +1,32 @@
+{
+  "document_id": "example-doc-id",
+  "extracted_data": {
+    "vendor_name": {
+      "value": "Acme Office Supplies",
+      "confidence": 0.96,
+      "evidence": "Vendor: Acme Office Supplies"
+    },
+    "invoice_number": {
+      "value": "INV-2025-1001",
+      "confidence": 0.98,
+      "evidence": "Invoice Number: INV-2025-1001"
+    },
+    "invoice_date": {
+      "value": "2025-01-12",
+      "confidence": 0.92,
+      "evidence": "Invoice Date: January 12, 2025"
+    },
+    "total_amount": {
+      "value": 1101.60,
+      "confidence": 0.95,
+      "evidence": "Total Due: $1,101.60"
+    },
+    "customer_name": {
+      "value": "BrightPath Consulting LLC",
+      "confidence": 0.91,
+      "evidence": "Bill To: BrightPath Consulting LLC"
+    }
+  },
+  "missing_required_fields": [],
+  "needs_review": false
+}

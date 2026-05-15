@@ -1,0 +1,18 @@
+Invoice
+
+Vendor: Acme Office Supplies
+Invoice Number: INV-2025-1001
+Invoice Date: January 12, 2025
+Due Date: February 12, 2025
+
+Bill To:
+BrightPath Consulting LLC
+
+Items:
+Office chairs x 4 - $800
+Desk lamps x 6 - $180
+Delivery - $40
+
+Subtotal: $1,020
+Tax: $81.60
+Total Due: $1,101.60
